@@ -24,6 +24,7 @@ import numpy as np
 # Required for robocasa environments
 import robocasa  # noqa: F401
 import robosuite  # noqa: F401
+from robocasa.wrappers.subtask_context_wrapper import SubtaskContextWrapper
 
 from gr00t.data.dataset import ModalityConfig
 from gr00t.eval.service import BaseInferenceClient
@@ -75,6 +76,7 @@ class SimulationConfig:
     n_envs: int = 1
     video: VideoConfig = field(default_factory=VideoConfig)
     multistep: MultiStepConfig = field(default_factory=MultiStepConfig)
+    use_subtask_context: bool = False
 
 
 class SimulationInferenceClient(BaseInferenceClient, BasePolicy):
@@ -182,6 +184,9 @@ def _create_single_env(config: SimulationConfig, idx: int) -> gym.Env:
     """Create a single environment with appropriate wrappers."""
     # Create base environment
     env = gym.make(config.env_name, split=config.split, enable_render=True)
+    # Optionally append ground-truth subtask progress context to language instruction
+    if config.use_subtask_context:
+        env = SubtaskContextWrapper(env)
     # Add video recording wrapper if needed (only for the first environment)
     if config.video.video_dir is not None:
         video_recorder = VideoRecorder.create_h264(

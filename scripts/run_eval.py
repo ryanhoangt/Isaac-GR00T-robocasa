@@ -52,14 +52,14 @@ def run_server(data_config, model_path, embodiment_tag, port):
     server.run()
 
 
-def run_client(host, port, task_set_list, video_dir, split, n_episodes, n_envs, n_action_steps):
+def run_client(host, port, task_set_list, video_dir, split, n_episodes, n_envs, n_action_steps, use_subtask_context=False):
     # Create a simulation client
     simulation_client = SimulationInferenceClient(host=host, port=port)
 
     print("Available modality configs:")
     modality_config = simulation_client.get_modality_config()
     print(modality_config.keys())
-    
+
     all_env_names = []
     for task_set in task_set_list:
         all_env_names += TASK_SET_REGISTRY[task_set]
@@ -68,7 +68,7 @@ def run_client(host, port, task_set_list, video_dir, split, n_episodes, n_envs, 
 
     for env_name in all_env_names:
         this_video_dir = os.path.join(video_dir, "evals", split, env_name)
-        
+
         stats_path = os.path.join(this_video_dir, "stats.json")
         if os.path.exists(stats_path):
             print(f"{env_name} stats already exsits. skipping.")
@@ -84,6 +84,7 @@ def run_client(host, port, task_set_list, video_dir, split, n_episodes, n_envs, 
             multistep=MultiStepConfig(
                 n_action_steps=n_action_steps, max_episode_steps=horizon,
             ),
+            use_subtask_context=use_subtask_context,
         )
 
         # Run the simulation
@@ -158,6 +159,11 @@ if __name__ == "__main__":
         help="Number of action steps per environment step.",
         default=16,
     )
+    parser.add_argument(
+        "--subtask_context",
+        action="store_true",
+        help="Append ground-truth subtask progress context to the language instruction at each step.",
+    )
     # server mode
     parser.add_argument("--server", action="store_true", help="Run the server.")
     # client mode
@@ -180,7 +186,8 @@ if __name__ == "__main__":
             split=args.split,
             n_episodes=args.n_episodes,
             n_envs=args.n_envs,
-            n_action_steps=args.n_action_steps
+            n_action_steps=args.n_action_steps,
+            use_subtask_context=args.subtask_context,
         )
     else:
         server_thread = threading.Thread(
@@ -198,5 +205,6 @@ if __name__ == "__main__":
             split=args.split,
             n_episodes=args.n_episodes,
             n_envs=args.n_envs,
-            n_action_steps=args.n_action_steps
+            n_action_steps=args.n_action_steps,
+            use_subtask_context=args.subtask_context,
         )
