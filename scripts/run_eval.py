@@ -52,7 +52,8 @@ def run_server(data_config, model_path, embodiment_tag, port):
     server.run()
 
 
-def run_client(host, port, task_set_list, video_dir, split, n_episodes, n_envs, n_action_steps, use_subtask_context=False):
+def run_client(host, port, video_dir, split, n_episodes, n_envs, n_action_steps,
+               task_set_list=None, tasks=None, use_subtask_context=False):
     # Create a simulation client
     simulation_client = SimulationInferenceClient(host=host, port=port)
 
@@ -61,8 +62,11 @@ def run_client(host, port, task_set_list, video_dir, split, n_episodes, n_envs, 
     print(modality_config.keys())
 
     all_env_names = []
-    for task_set in task_set_list:
-        all_env_names += TASK_SET_REGISTRY[task_set]
+    if task_set_list:
+        for task_set in task_set_list:
+            all_env_names += TASK_SET_REGISTRY[task_set]
+    if tasks:
+        all_env_names += tasks
     # turn into unique list
     all_env_names = set(all_env_names)
 
@@ -136,8 +140,15 @@ if __name__ == "__main__":
         "--task_set",
         type=str,
         nargs='+',
-        help="Name of the task soup(s)",
-        required=True,
+        default=None,
+        help="Name of the task set(s) (e.g. composite_seen).",
+    )
+    parser.add_argument(
+        "--tasks",
+        type=str,
+        nargs='+',
+        default=None,
+        help="Explicit list of task IDs to evaluate (e.g. PrepareCoffee StirVegetables).",
     )
     parser.add_argument(
         "--split",
@@ -170,6 +181,9 @@ if __name__ == "__main__":
     parser.add_argument("--client", action="store_true", help="Run the client")
     args = parser.parse_args()
 
+    if not args.server and not args.task_set and not args.tasks:
+        parser.error("Provide --task_set, --tasks, or both (ignored in --server mode).")
+
     if args.server:
         run_server(
             data_config=args.data_config,
@@ -182,6 +196,7 @@ if __name__ == "__main__":
             host=args.host,
             port=args.port,
             task_set_list=args.task_set,
+            tasks=args.tasks,
             video_dir=args.video_dir or args.model_path,
             split=args.split,
             n_episodes=args.n_episodes,
@@ -201,6 +216,7 @@ if __name__ == "__main__":
             host=args.host,
             port=args.port,
             task_set_list=args.task_set,
+            tasks=args.tasks,
             video_dir=args.video_dir or args.model_path,
             split=args.split,
             n_episodes=args.n_episodes,
