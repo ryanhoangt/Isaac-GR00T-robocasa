@@ -13,6 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import json
 import os
 from datetime import datetime
 from pathlib import Path
@@ -206,12 +207,30 @@ class VideoRecordingWrapper(gym.Wrapper):
         self.max_subtask_idx = -1
         self.final_subtask_idx = -1
         self.n_subtasks = 0
+        self.subtask_transitions: list[dict] = []
+        self._last_subtask_idx = -1
 
     def _subtask_suffix(self) -> str:
         """Return filename suffix with subtask info, or empty string if unavailable."""
         if self.n_subtasks <= 0:
             return ""
         return f"_stend{self.final_subtask_idx}_stmax{self.max_subtask_idx}_n{self.n_subtasks}"
+
+    def _flush_episode(self, new_filestem: str) -> None:
+        """Rename video and write subtask JSON for the completed episode."""
+        new_file_path = self.video_dir / f"{new_filestem}.mp4"
+        os.rename(self.file_path, new_file_path)
+        if self.n_subtasks > 0:
+            log = {
+                "env_idx": self.env_idx,
+                "success": self.is_success,
+                "n_subtasks": self.n_subtasks,
+                "episode_length": self.step_count,
+                "subtask_transitions": self.subtask_transitions,
+            }
+            json_path = self.video_dir / f"{new_filestem}.json"
+            with open(json_path, "w") as f:
+                json.dump(log, f, indent=2)
 
     def reset(self, **kwargs):
         result = super().reset(**kwargs)
@@ -220,15 +239,15 @@ class VideoRecordingWrapper(gym.Wrapper):
         self.video_recorder.stop()
 
         if self.video_dir is not None and self.file_path is not None:
-            # rename the completed episode's file to include outcome and subtask info
             new_filestem = f"{self.file_path.stem}_s{int(self.is_success)}{self._subtask_suffix()}"
-            new_file_path = self.video_dir / f"{new_filestem}.mp4"
-            os.rename(self.file_path, new_file_path)
+            self._flush_episode(new_filestem)
 
         self.is_success = False
         self.max_subtask_idx = -1
         self.final_subtask_idx = -1
         self.n_subtasks = 0
+        self.subtask_transitions = []
+        self._last_subtask_idx = -1
         if self.video_dir is not None:
             ts = datetime.now().strftime("%Y%m%d_%H%M%S")
             self.file_path = self.video_dir / f"env{self.env_idx:02d}_{ts}.mp4"
@@ -247,9 +266,13 @@ class VideoRecordingWrapper(gym.Wrapper):
             info = result[-1]
             self.is_success = info["success"]
             if "subtask_idx" in info:
-                self.final_subtask_idx = info["subtask_idx"]
-                self.max_subtask_idx = max(self.max_subtask_idx, self.final_subtask_idx)
+                idx = info["subtask_idx"]
+                self.final_subtask_idx = idx
+                self.max_subtask_idx = max(self.max_subtask_idx, idx)
                 self.n_subtasks = info["n_subtasks"]
+                if idx != self._last_subtask_idx:
+                    self.subtask_transitions.append({"step": self.step_count, "subtask_idx": idx})
+                    self._last_subtask_idx = idx
         return result
 
     def render(self, mode="rgb_array", **kwargs):
