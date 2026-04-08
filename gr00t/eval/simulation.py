@@ -202,6 +202,7 @@ def _create_single_env(config: SimulationConfig, idx: int) -> gym.Env:
             video_recorder,
             video_dir=Path(config.video.video_dir),
             steps_per_render=config.video.steps_per_render,
+            env_idx=idx,
         )
     # Add multi-step wrapper
     env = MultiStepWrapper(

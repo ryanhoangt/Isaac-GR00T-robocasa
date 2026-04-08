@@ -14,7 +14,7 @@
 # limitations under the License.
 
 import os
-import uuid
+from datetime import datetime
 from pathlib import Path
 
 import av
@@ -180,10 +180,12 @@ class VideoRecordingWrapper(gym.Wrapper):
         mode="rgb_array",
         video_dir: Path | None = None,
         steps_per_render=1,
+        env_idx: int = 0,
         **kwargs,
     ):
         """
         When file_path is None, don't record.
+        env_idx: index of this environment among parallel workers (used in filename).
         """
         super().__init__(env)
 
@@ -196,6 +198,7 @@ class VideoRecordingWrapper(gym.Wrapper):
         self.video_dir = video_dir
         self.video_recorder = video_recorder
         self.file_path = None
+        self.env_idx = env_idx
 
         self.step_count = 0
 
@@ -207,16 +210,16 @@ class VideoRecordingWrapper(gym.Wrapper):
         self.step_count = 1
         self.video_recorder.stop()
 
-        # if self.video_dir is not None and self.file_path is not None:
-        #     # rename the file to indicate success or failure
-        #     original_filestem = self.file_path.stem
-        #     new_filestem = f"{original_filestem}_success{int(self.is_success)}"
-        #     new_file_path = self.video_dir / f"{new_filestem}.mp4"
-        #     os.rename(self.file_path, new_file_path)
+        if self.video_dir is not None and self.file_path is not None:
+            # rename the completed episode's file to include success/failure outcome
+            new_filestem = f"{self.file_path.stem}_s{int(self.is_success)}"
+            new_file_path = self.video_dir / f"{new_filestem}.mp4"
+            os.rename(self.file_path, new_file_path)
 
         self.is_success = False
         if self.video_dir is not None:
-            self.file_path = self.video_dir / f"{uuid.uuid4()}.mp4"
+            ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+            self.file_path = self.video_dir / f"env{self.env_idx:02d}_{ts}.mp4"
         return result
 
     def step(self, action):
