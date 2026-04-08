@@ -203,6 +203,15 @@ class VideoRecordingWrapper(gym.Wrapper):
         self.step_count = 0
 
         self.is_success = False
+        self.max_subtask_idx = -1
+        self.final_subtask_idx = -1
+        self.n_subtasks = 0
+
+    def _subtask_suffix(self) -> str:
+        """Return filename suffix with subtask info, or empty string if unavailable."""
+        if self.n_subtasks <= 0:
+            return ""
+        return f"_stend{self.final_subtask_idx}_stmax{self.max_subtask_idx}_n{self.n_subtasks}"
 
     def reset(self, **kwargs):
         result = super().reset(**kwargs)
@@ -211,12 +220,15 @@ class VideoRecordingWrapper(gym.Wrapper):
         self.video_recorder.stop()
 
         if self.video_dir is not None and self.file_path is not None:
-            # rename the completed episode's file to include success/failure outcome
-            new_filestem = f"{self.file_path.stem}_s{int(self.is_success)}"
+            # rename the completed episode's file to include outcome and subtask info
+            new_filestem = f"{self.file_path.stem}_s{int(self.is_success)}{self._subtask_suffix()}"
             new_file_path = self.video_dir / f"{new_filestem}.mp4"
             os.rename(self.file_path, new_file_path)
 
         self.is_success = False
+        self.max_subtask_idx = -1
+        self.final_subtask_idx = -1
+        self.n_subtasks = 0
         if self.video_dir is not None:
             ts = datetime.now().strftime("%Y%m%d_%H%M%S")
             self.file_path = self.video_dir / f"env{self.env_idx:02d}_{ts}.mp4"
@@ -232,7 +244,12 @@ class VideoRecordingWrapper(gym.Wrapper):
             frame = self.env.render()
             assert frame.dtype == np.uint8
             self.video_recorder.write_frame(frame)
-            self.is_success = result[-1]["success"]
+            info = result[-1]
+            self.is_success = info["success"]
+            if "subtask_idx" in info:
+                self.final_subtask_idx = info["subtask_idx"]
+                self.max_subtask_idx = max(self.max_subtask_idx, self.final_subtask_idx)
+                self.n_subtasks = info["n_subtasks"]
         return result
 
     def render(self, mode="rgb_array", **kwargs):

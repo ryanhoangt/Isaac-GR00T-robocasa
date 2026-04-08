@@ -184,9 +184,9 @@ def _create_single_env(config: SimulationConfig, idx: int) -> gym.Env:
     """Create a single environment with appropriate wrappers."""
     # Create base environment
     env = gym.make(config.env_name, split=config.split, enable_render=True)
-    # Optionally append ground-truth subtask progress context to language instruction
-    if config.use_subtask_context:
-        env = SubtaskContextWrapper(env)
+    # Always apply SubtaskContextWrapper so subtask progress is tracked in the info
+    # dict regardless of whether language augmentation is enabled.
+    env = SubtaskContextWrapper(env, augment_language=config.use_subtask_context)
     # Add video recording wrapper if needed (only for the first environment)
     if config.video.video_dir is not None:
         video_recorder = VideoRecorder.create_h264(
